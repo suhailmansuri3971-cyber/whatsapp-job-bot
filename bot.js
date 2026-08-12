@@ -1,16 +1,18 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
-const qrcode = require('qrcode-terminal');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const express = require('express');
 
 const app = express();
 let lastJobLink = "";
-let targetGroupId = ""; // Yahan hum WhatsApp Group save karenge
+let targetGroupId = ""; 
+
+// Aapka number country code (91) ke sath bina kisi space ya '+' ke
+const phoneNumber = "917479893675"; 
 
 async function autoCheckAndExtract(sock) {
-    if (!targetGroupId) return; // Agar group set nahi hai toh ruko
+    if (!targetGroupId) return; 
 
     try {
         const { data } = await axios.get('https://www.sarkariresult.com/');
@@ -32,7 +34,6 @@ async function autoCheckAndExtract(sock) {
         let shortInfo = $$('span:contains("Short Information")').parent().text().replace('Short Information :', '').trim();
         if (shortInfo && shortInfo.length > 250) shortInfo = shortInfo.substring(0, 250) + "...";
 
-        // Ekdum Insaan (Dukandaar) ki tarah likha hua message (Address aur Number ke sath)
         const dukanWalaMessage = `
 🚨 *NAYI BUMPER BHARTI (VACANCY)* 🚨
 
@@ -74,38 +75,45 @@ async function connectToWhatsApp() {
     
     const sock = makeWASocket({
         auth: state,
-        printQRInTerminal: true,
-        browser: ["Mansuri Job Bot", "Chrome", "1.0.0"]
+        printQRInTerminal: false, // QR Code ab nahi dikhega
+        browser: ["Ubuntu", "Chrome", "20.0.04"] // Pairing code ke liye yeh hona zaroori hai
     });
 
+    // Agar bot pehle se login nahi hai, toh Pairing Code generate karo
+    if (!sock.authState.creds.me?.id) {
+        setTimeout(async () => {
+            try {
+                let code = await sock.requestPairingCode(phoneNumber);
+                code = code?.match(/.{1,4}/g)?.join("-") || code;
+                console.log(`\n======================================================`);
+                console.log(`🚨🚨 Kripya apne WhatsApp me ye PAIRING CODE dalein: ${code} 🚨🚨`);
+                console.log(`======================================================\n`);
+            } catch(e) {
+                console.log("Pairing code error:", e);
+            }
+        }, 3000);
+    }
+
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update;
-        
-        if (qr) {
-            console.log("👇 APNA WHATSAPP KHOLO AUR YE QR CODE SCAN KARO 👇");
-            qrcode.generate(qr, { small: true });
-        }
+        const { connection, lastDisconnect } = update;
 
         if (connection === 'close') {
             const shouldReconnect = (lastDisconnect.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
             if (shouldReconnect) connectToWhatsApp();
         } else if (connection === 'open') {
             console.log('✅ WhatsApp Bot Connected!');
-            // Har 3 minute mein website check karega
-            setInterval(() => autoCheckAndExtract(sock), 180000);
+            setInterval(() => autoCheckAndExtract(sock), 180000); // 3 minutes loop
         }
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    // Bot ko batane ke liye ki kis group mein message bhejna hai
     sock.ev.on('messages.upsert', async (m) => {
         const msg = m.messages[0];
         if (!msg.message) return;
         
         const text = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
         
-        // Agar aap group mein "!startbot" likhenge, toh bot us group ko yaad kar lega
         if (text === '!startbot') {
             targetGroupId = msg.key.remoteJid;
             await sock.sendMessage(targetGroupId, { text: '✅ *SarkariResult Auto-Update Tracker On!* Ab jab bhi nayi job aayegi, main khud yahan bhej dunga.' });
@@ -116,6 +124,5 @@ async function connectToWhatsApp() {
 
 connectToWhatsApp();
 
-// Cloud Server ko jagaye rakhne ke liye
 app.get('/', (req, res) => res.send("WhatsApp Bot is Alive! 🚀"));
 app.listen(process.env.PORT || 3000, () => console.log(`✅ Web Server chal raha hai`));
