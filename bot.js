@@ -6,6 +6,7 @@ const express = require('express');
 
 const app = express();
 let targetGroupId = ""; 
+// Aapka WhatsApp Number
 const phoneNumber = "917479893675"; 
 
 let lastJobLink = "";
@@ -14,21 +15,24 @@ async function checkJharkhandJobs(sock) {
     if (!targetGroupId) return; 
 
     try {
-        // Aapki research ki hui nayi website!
         const targetUrl = 'https://jharkhandijobs.com/all_pages/AllJharkhandJobs.aspx';
-        const { data } = await axios.get(targetUrl);
-        const $ = cheerio.load(data);
         
+        // Anti-Blocker Mask (Taki website block na kare)
+        const { data } = await axios.get(targetUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
+            }
+        });
+        
+        const $ = cheerio.load(data);
         let jobLinks = [];
         
-        // Website ke andar se sabhi zaroori links nikalna
+        // Links Extract Karna
         $('a').each((i, el) => {
             let href = $(el).attr('href');
             let text = $(el).text().trim();
             
-            // Faltu links (jaise Home, Contact) ko ignore karna
             if (href && text.length > 10 && !href.startsWith('javascript') && !href.startsWith('#')) {
-                // Agar link aadhi-adhuri hai, toh usko poora banana
                 if (href.startsWith('/')) {
                     href = 'https://jharkhandijobs.com' + href;
                 } else if (!href.startsWith('http')) {
@@ -40,7 +44,6 @@ async function checkJharkhandJobs(sock) {
 
         if (jobLinks.length === 0) return;
 
-        // Sabse pehli aur nayi bharti/update ko pakadna
         let latestJob = jobLinks[0]; 
 
         if (latestJob.link === lastJobLink) return; 
@@ -69,7 +72,8 @@ async function checkJharkhandJobs(sock) {
 }
 
 async function connectToWhatsApp() {
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+    // 🔴 Badi Tabdeeli: Naya Session Name (Purana kachra saaf)
+    const { state, saveCreds } = await useMultiFileAuthState('auth_session_jharkhand');
     
     const sock = makeWASocket({
         auth: state,
@@ -82,8 +86,10 @@ async function connectToWhatsApp() {
             try {
                 let code = await sock.requestPairingCode(phoneNumber);
                 code = code?.match(/.{1,4}/g)?.join("-") || code;
-                console.log(`\n🚨🚨 PAIRING CODE: ${code} 🚨🚨\n`);
-            } catch(e) {}
+                console.log(`\n🚨🚨 NAYA PAIRING CODE: ${code} 🚨🚨\n`);
+            } catch(e) {
+                console.log("Pairing code error:", e);
+            }
         }, 3000);
     }
 
@@ -95,7 +101,7 @@ async function connectToWhatsApp() {
             if (shouldReconnect) connectToWhatsApp();
         } else if (connection === 'open') {
             console.log('✅ WhatsApp Bot Connected to JharkhandiJobs!');
-            // Har 10 minute mein aapki website check karega
+            // Har 10 minute ka loop
             setInterval(() => checkJharkhandJobs(sock), 600000); 
         }
     });
