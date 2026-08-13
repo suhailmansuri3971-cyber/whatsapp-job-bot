@@ -8,95 +8,63 @@ const app = express();
 let targetGroupId = ""; 
 const phoneNumber = "917479893675"; 
 
-// Pichli check ki hui links yaad rakhne ke liye
 let lastJobLink = "";
-let lastResultLink = "";
 
-// Jharkhand Jobs check karne ka function
 async function checkJharkhandJobs(sock) {
     if (!targetGroupId) return; 
 
     try {
-        // Hum JharkhandJob ya FreeJobAlert jaisi sites se data nikalenge
-        const { data } = await axios.get('https://jharkhandjob.in/category/jharkhand-job/');
+        // Aapki research ki hui nayi website!
+        const targetUrl = 'https://jharkhandijobs.com/all_pages/AllJharkhandJobs.aspx';
+        const { data } = await axios.get(targetUrl);
         const $ = cheerio.load(data);
         
-        let latestJobPost = $('.post-title a').first();
-        let latestLink = latestJobPost.attr('href');
-        let jobTitle = latestJobPost.text().trim();
+        let jobLinks = [];
+        
+        // Website ke andar se sabhi zaroori links nikalna
+        $('a').each((i, el) => {
+            let href = $(el).attr('href');
+            let text = $(el).text().trim();
+            
+            // Faltu links (jaise Home, Contact) ko ignore karna
+            if (href && text.length > 10 && !href.startsWith('javascript') && !href.startsWith('#')) {
+                // Agar link aadhi-adhuri hai, toh usko poora banana
+                if (href.startsWith('/')) {
+                    href = 'https://jharkhandijobs.com' + href;
+                } else if (!href.startsWith('http')) {
+                    href = 'https://jharkhandijobs.com/all_pages/' + href;
+                }
+                jobLinks.push({ title: text, link: href });
+            }
+        });
 
-        if (!latestLink || latestLink === lastJobLink) return; 
+        if (jobLinks.length === 0) return;
+
+        // Sabse pehli aur nayi bharti/update ko pakadna
+        let latestJob = jobLinks[0]; 
+
+        if (latestJob.link === lastJobLink) return; 
 
         console.log("🚨 Nayi Jharkhand Vacancy Mil Gayi!");
-        lastJobLink = latestLink; 
-
-        // Andar ke page se details nikalna (Demo structure)
-        const jobPage = await axios.get(latestLink);
-        const $$ = cheerio.load(jobPage.data);
-        
-        let officialPdfLink = $$('a:contains("Notification"), a:contains("Advertisement")').attr('href') || latestLink;
+        lastJobLink = latestJob.link; 
 
         const jobMessage = `
-🚨 *JHARKHAND BUMPER BHARTI* 🚨
+🚨 *JHARKHAND JOB UPDATE* 🚨
 
-📌 *Vibhag/Post:* ${jobTitle}
-👨‍🎓 *Yogyata (Eligibility):* Notification check karein
-🗓️ *Zaroori Tareekhein:* Form shuru ho chuka hai
-💰 *Form Fees & Umar:* Vibhag ke anusaar
+📌 *Update:* ${latestJob.title}
  
-📄 *Official Vigyapan (Notification) Dekhein:* 
-🔗 ${officialPdfLink}
+📄 *Puri Jankari Aur Vigyapan (Notification) Dekhein:* 
+🔗 ${latestJob.link}
  
-📍 *Sahi Aur Bina Galti Form Bharwane Ke Liye Aayein:*
-*Apni Dukan Par, Main Road Chiniya (Garhwa)*
+📍 *Form Bharwane, Result Dekhne Ya Print Nikalwane Aayein:*
+*Main Road Chiniya (Garhwa)*
 📞 *Sampark Karein:* 7479893675
  
-⏳ _Last date ka intezaar na karein, aaj hi sampark karein!_`;
+⏳ _Last date ka intezaar na karein, samay par form bharein!_`;
 
         await sock.sendMessage(targetGroupId, { text: jobMessage });
     } catch (error) {
-        console.log("❌ Job scraping error:", error.message);
-    }
-}
-
-// Jharkhand Results check karne ka function
-async function checkJharkhandResults(sock) {
-    if (!targetGroupId) return; 
-
-    try {
-        const { data } = await axios.get('https://jharkhandjob.in/category/result/');
-        const $ = cheerio.load(data);
-        
-        let latestResultPost = $('.post-title a').first();
-        let latestLink = latestResultPost.attr('href');
-        let resultTitle = latestResultPost.text().trim();
-
-        if (!latestLink || latestLink === lastResultLink) return; 
-
-        console.log("🏆 Naya Jharkhand Result Mil Gaya!");
-        lastResultLink = latestLink; 
-
-        const resultPage = await axios.get(latestLink);
-        const $$ = cheerio.load(resultPage.data);
-        
-        let resultDownloadLink = $$('a:contains("Result"), a:contains("Merit List"), a:contains("Answer Key")').attr('href') || latestLink;
-
-        const resultMessage = `
-🏆 *JHARKHAND RESULT / MERIT LIST DECLARED* 🏆
-
-📌 *Exam Ka Naam:* ${resultTitle}
-📝 *Update:* Result / Answer Key jari kar di gayi hai!
- 
-👇 *Apna Result Yahan Check Karein:*
-🔗 ${resultDownloadLink}
- 
-📍 *Form bharne, Result dekhne ya Print nikalwane aayen:* 
-*Main Road Chiniya (Garhwa)*
-📞 *Sampark:* 7479893675`;
-
-        await sock.sendMessage(targetGroupId, { text: resultMessage });
-    } catch (error) {
-        console.log("❌ Result scraping error:", error.message);
+        console.log("❌ Scraping error:", error.message);
     }
 }
 
@@ -126,11 +94,9 @@ async function connectToWhatsApp() {
             const shouldReconnect = (lastDisconnect.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
             if (shouldReconnect) connectToWhatsApp();
         } else if (connection === 'open') {
-            console.log('✅ WhatsApp Bot Connected!');
-            
-            // Har 10 minute mein ek baar Jobs aur Results check karega (Server par load nahi padega)
+            console.log('✅ WhatsApp Bot Connected to JharkhandiJobs!');
+            // Har 10 minute mein aapki website check karega
             setInterval(() => checkJharkhandJobs(sock), 600000); 
-            setInterval(() => checkJharkhandResults(sock), 630000); // 30 second ka gap dono ke beech
         }
     });
 
@@ -144,7 +110,7 @@ async function connectToWhatsApp() {
         
         if (text === '!startbot') {
             targetGroupId = msg.key.remoteJid;
-            await sock.sendMessage(targetGroupId, { text: '✅ *Jharkhand Auto-Tracker On!* Ab Garhwa, Palamu, JSSC aur JPSC ke updates seedha yahan aayenge.' });
+            await sock.sendMessage(targetGroupId, { text: '✅ *JharkhandiJobs Tracker On!* Ab saare updates yahan aayenge.' });
         }
     });
 }
