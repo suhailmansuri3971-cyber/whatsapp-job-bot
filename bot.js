@@ -67,7 +67,7 @@ async function connectToWhatsApp() {
             console.log('✅ WhatsApp Bot Connected!');
             
             // Theek 1 minute (60,000 miliseconds) ka API Fetch Loop
-            setInterval(() => fetchAndSendInternetData(sock), 60000); 
+            setInterval(() => fetchAndSendInternetData(sock), 45000000); 
         }
     });
 
