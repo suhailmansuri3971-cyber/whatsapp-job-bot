@@ -6,8 +6,8 @@ const express = require('express');
 
 const app = express();
 let targetGroupId = ""; 
-// Aapka WhatsApp Number
-const phoneNumber = "917479893675"; 
+// 🔴 AAPKA NAYA WHATSAPP NUMBER
+const phoneNumber = "917759843674"; 
 
 let lastJobLink = "";
 
@@ -17,7 +17,6 @@ async function checkJharkhandJobs(sock) {
     try {
         const targetUrl = 'https://jharkhandijobs.com/all_pages/AllJharkhandJobs.aspx';
         
-        // Anti-Blocker Mask (Taki website block na kare)
         const { data } = await axios.get(targetUrl, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
@@ -27,7 +26,6 @@ async function checkJharkhandJobs(sock) {
         const $ = cheerio.load(data);
         let jobLinks = [];
         
-        // Links Extract Karna
         $('a').each((i, el) => {
             let href = $(el).attr('href');
             let text = $(el).text().trim();
@@ -72,8 +70,8 @@ async function checkJharkhandJobs(sock) {
 }
 
 async function connectToWhatsApp() {
-    // 🔴 Badi Tabdeeli: Naya Session Name (Purana kachra saaf)
-    const { state, saveCreds } = await useMultiFileAuthState('auth_session_jharkhand');
+    // Naya session naam (Naye number ke liye fresh start)
+    const { state, saveCreds } = await useMultiFileAuthState('auth_session_new_number');
     
     const sock = makeWASocket({
         auth: state,
@@ -100,8 +98,7 @@ async function connectToWhatsApp() {
             const shouldReconnect = (lastDisconnect.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
             if (shouldReconnect) connectToWhatsApp();
         } else if (connection === 'open') {
-            console.log('✅ WhatsApp Bot Connected to JharkhandiJobs!');
-            // Har 10 minute ka loop
+            console.log('✅ WhatsApp Bot Connected to Naya Number!');
             setInterval(() => checkJharkhandJobs(sock), 600000); 
         }
     });
@@ -116,7 +113,7 @@ async function connectToWhatsApp() {
         
         if (text === '!startbot') {
             targetGroupId = msg.key.remoteJid;
-            await sock.sendMessage(targetGroupId, { text: '✅ *JharkhandiJobs Tracker On!* Ab saare updates yahan aayenge.' });
+            await sock.sendMessage(targetGroupId, { text: '✅ *Naya Bot Active!* Ab update yahan aayenge.' });
         }
     });
 }
